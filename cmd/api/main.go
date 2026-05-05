@@ -3,6 +3,7 @@ package main
 import (
 	"cash-control/internal/config"
 	"cash-control/internal/database"
+	"cash-control/internal/handlers"
 	"fmt"
 	"log"
 
@@ -29,15 +30,18 @@ func main() {
 	defer pool.Close()
 
 	fmt.Println("API Server")
-	var r *gin.Engine = gin.Default()
-
-	r.GET("/", func(ctx *gin.Context) {
+	var router *gin.Engine = gin.Default()
+	router.SetTrustedProxies(nil)
+	router.GET("/", func(ctx *gin.Context) {
 		ctx.JSON(200, gin.H{
 			"message":  "it's ok",
 			"databese": "connected",
 		})
 	})
 
-	r.Run(":" + cfg.Port)
+	router.POST("/stores", handlers.CreateStoreHandler(pool))
+	router.GET("/stores", handlers.GetAllStoresHandler(pool))
+
+	router.Run(":" + cfg.Port)
 
 }
