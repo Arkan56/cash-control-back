@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -31,6 +32,12 @@ func main() {
 
 	fmt.Println("API Server")
 	var router *gin.Engine = gin.Default()
+	router.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"http://localhost:5173"}, // El puerto de tu Front (Vite/React)
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
+		AllowCredentials: true,
+	}))
 	router.SetTrustedProxies(nil)
 	router.GET("/", func(ctx *gin.Context) {
 		ctx.JSON(200, gin.H{
@@ -41,6 +48,8 @@ func main() {
 
 	router.POST("/stores", handlers.CreateStoreHandler(pool))
 	router.GET("/stores", handlers.GetAllStoresHandler(pool))
+	router.POST("/movements", handlers.CreateMovHandler(pool))
+	router.GET("/movements/vault/:id", handlers.GetAllMovsHandler(pool))
 
 	router.Run(":" + cfg.Port)
 
