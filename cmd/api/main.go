@@ -50,7 +50,9 @@ func main() {
 	router.GET("/stores", handlers.GetAllStoresHandler(pool))
 	router.POST("/movements", handlers.CreateMovHandler(pool))
 	router.GET("/movements/vault/:id", handlers.GetAllMovsHandler(pool))
-
+	router.POST("/vaults", handlers.CreateVaultHandler(pool))
+	router.GET("/vaults/:id", handlers.GetAllVaultsByStoreIdHandler(pool))
+	router.POST("auth/login/vault", handlers.LoginVaultHandler(pool))
 	router.Run(":" + cfg.Port)
 
 }
