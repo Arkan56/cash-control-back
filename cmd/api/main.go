@@ -33,7 +33,7 @@ func main() {
 	fmt.Println("API Server")
 	var router *gin.Engine = gin.Default()
 	router.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:5173"}, // El puerto de tu Front (Vite/React)
+		AllowOrigins:     []string{"http://localhost:5173"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
 		AllowCredentials: true,
@@ -53,6 +53,7 @@ func main() {
 	router.POST("/vaults", handlers.CreateVaultHandler(pool))
 	router.GET("/vaults/:id", handlers.GetAllVaultsByStoreIdHandler(pool))
 	router.POST("auth/login/vault", handlers.LoginVaultHandler(pool))
+	router.POST("/users", handlers.CreateUserHandler(pool))
 	router.Run(":" + cfg.Port)
 
 }
