@@ -4,6 +4,7 @@ import (
 	"cash-control/internal/config"
 	"cash-control/internal/database"
 	"cash-control/internal/handlers"
+	"cash-control/internal/middleware"
 	"fmt"
 	"log"
 
@@ -15,6 +16,10 @@ import (
 func main() {
 	var cfg *config.Config
 	var err error
+	const (
+		admin_rol  = 1
+		worker_rol = 2
+	)
 	cfg, err = config.Load()
 
 	if err != nil {
@@ -46,14 +51,28 @@ func main() {
 		})
 	})
 
-	router.POST("/stores", handlers.CreateStoreHandler(pool))
-	router.GET("/stores", handlers.GetAllStoresHandler(pool))
-	router.POST("/movements", handlers.CreateMovHandler(pool))
-	router.GET("/movements/vault/:id", handlers.GetAllMovsHandler(pool))
-	router.POST("/vaults", handlers.CreateVaultHandler(pool))
-	router.GET("/vaults/:id", handlers.GetAllVaultsByStoreIdHandler(pool))
-	router.POST("auth/login/vault", handlers.LoginVaultHandler(pool))
-	router.POST("/users", handlers.CreateUserHandler(pool))
+	router.POST("/auth/login/user", handlers.LoginUserHandler(pool, cfg))
+
+	api := router.Group("/api")
+	api.Use(middleware.AuthMiddleware(cfg))
+
+	admin := api.Group("/admin")
+	admin.Use(middleware.AuthRolMiddleware(admin_rol))
+	{
+		admin.POST("/stores", handlers.CreateStoreHandler(pool))
+		admin.POST("/vaults", handlers.CreateVaultHandler(pool))
+		admin.POST("/users", handlers.CreateUserHandler(pool))
+	}
+
+	core := api.Group("/core")
+	core.Use(middleware.AuthRolMiddleware(admin_rol, worker_rol))
+	{
+		core.GET("/stores", handlers.GetAllStoresHandler(pool))
+		core.POST("/movements", handlers.CreateMovHandler(pool))
+		core.GET("/movements/vault/:id", handlers.GetAllMovsHandler(pool))
+		core.GET("/vaults/:id", handlers.GetAllVaultsByStoreIdHandler(pool))
+		core.POST("/auth/login/vault", handlers.LoginVaultHandler(pool))
+	}
 	router.Run(":" + cfg.Port)
 
 }

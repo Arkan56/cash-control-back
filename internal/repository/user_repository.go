@@ -37,3 +37,55 @@ func CreateWorkerUser(pool *pgxpool.Pool, req *models.CreateUserRequest) (*model
 
 	return &createdUser, nil
 }
+
+func GetUserById(pool *pgxpool.Pool, id int64) (*models.User, error) {
+	var ctx context.Context
+	var cancel context.CancelFunc
+
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+
+	defer cancel()
+
+	var query = `SELECT id, userName, name, password, rol_id FROM users WHERE users.id = $1`
+
+	var user models.User
+	err := pool.QueryRow(ctx, query, id).Scan(
+		&user.ID,
+		&user.UserName,
+		&user.Name,
+		&user.Password,
+		&user.IdRol,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &user, nil
+}
+
+func GetUserByUserName(pool *pgxpool.Pool, user_name string) (*models.User, error) {
+	var ctx context.Context
+	var cancel context.CancelFunc
+
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+
+	defer cancel()
+
+	var query = `SELECT id, userName, name, password, rol_id FROM users WHERE users.userName = $1`
+
+	var user models.User
+	err := pool.QueryRow(ctx, query, user_name).Scan(
+		&user.ID,
+		&user.UserName,
+		&user.Name,
+		&user.Password,
+		&user.IdRol,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &user, nil
+}

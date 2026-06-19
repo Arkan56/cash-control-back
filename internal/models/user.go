@@ -15,7 +15,16 @@ type CreatedUserResponce struct {
 }
 
 type CreateUserRequest struct {
-	UserName string `json:"user_name"`
-	Name     string `json:"name"`
-	Password string `json:"password"`
+	UserName string `json:"user_name" binding:"required"`
+	Name     string `json:"name" binding:"required"`
+	Password string `json:"password" binding:"required"`
+}
+
+type LoginUserRequest struct {
+	UserName string `json:"user_name" binding:"required"`
+	Password string `json:"password" binding:"required"`
+}
+
+type LoginUserResponse struct {
+	Token string `json:"token"`
 }
