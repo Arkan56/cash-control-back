@@ -3,6 +3,7 @@ package repository
 import (
 	"cash-control/internal/models"
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -14,6 +15,38 @@ func CreateMovement(pool *pgxpool.Pool, detail string, amount int64, amountCateg
 
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
+	tx, err := pool.Begin(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer tx.Rollback(ctx)
+
+	var storeQuery string = `SELECT store_id FROM vaults WHERE id = $1`
+
+	var storeId int64
+
+	err = tx.QueryRow(ctx, storeQuery,
+		vaultID).Scan(&storeId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var vaultLock string = `SELECT balance FROM vaults WHERE id = $1 FOR UPDATE `
+
+	var vaulBalace int64
+	err = tx.QueryRow(ctx, vaultLock, vaultID).Scan(&vaulBalace)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if amount < 0 && amount*(-1) > vaulBalace {
+		return nil, fmt.Errorf("cannot create movement: requested amount %d exceeds vault balance %d", amount, vaulBalace)
+	}
 
 	var query string = `
 	INSERT INTO movements (
@@ -27,7 +60,7 @@ func CreateMovement(pool *pgxpool.Pool, detail string, amount int64, amountCateg
 
 	var movement models.Movement
 
-	var err error = pool.QueryRow(ctx, query,
+	err = tx.QueryRow(ctx, query,
 		detail,
 		amount,
 		amountCategoryID,
@@ -43,6 +76,26 @@ func CreateMovement(pool *pgxpool.Pool, detail string, amount int64, amountCateg
 	)
 
 	if err != nil {
+		return nil, err
+	}
+
+	var updateVault string = `UPDATE vaults SET balance = balance + $1 WHERE id = $2`
+
+	_, err = tx.Exec(ctx, updateVault, amount, vaultID)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var updateStore string = `UPDATE stores SET balance = balance + $1 WHERE id = $2`
+
+	_, err = tx.Exec(ctx, updateStore, amount, storeId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
 
