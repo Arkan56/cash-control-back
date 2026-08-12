@@ -8,20 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"golang.org/x/crypto/bcrypt"
 )
-
-type LoginVaultReq struct {
-	Id       int64  `json:"vault_id" binding:"required"`
-	Password string `json:"password" binding:"required"`
-}
-
-type LoginVaultResponse struct {
-	ID        int64  `json:"id"`
-	StoreName string `json:"store_name"`
-	Name      string `json:"name"`
-	Balance   int64  `json:"balance"`
-}
 
 func CreateVaultHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -31,17 +18,10 @@ func CreateVaultHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
-
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password" + err.Error()})
-			return
-		}
 
 		vault := &models.CreateVaultRequest{
-			Name:     input.Name,
-			Password: string(hashedPassword),
-			StoreId:  input.StoreId,
+			Name:    input.Name,
+			StoreId: input.StoreId,
 		}
 
 		createdVault, err := repository.CreateVault(pool, vault)
@@ -75,34 +55,135 @@ func GetAllVaultsByStoreIdHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	}
 }
 
-func LoginVaultHandler(pool *pgxpool.Pool) gin.HandlerFunc {
+func GetVaultsByUserId(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var loginRequest LoginVaultReq
+		userIdInterface, exist := c.Get("user_id")
 
-		if err := c.BindJSON(&loginRequest); err != nil {
+		if !exist {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "user_id not found"})
+			return
+		}
+
+		userIdFl := userIdInterface.(float64)
+
+		userId := int64(userIdFl)
+
+		vaults, err := repository.GetVaultsByUserId(pool, userId)
+
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, vaults)
+	}
+}
+
+func CreateVaultAccessHandler(pool *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var request struct {
+			VaultID int64 `json:"vault_id"`
+			UserID  int64 `json:"user_id"`
+		}
+
+		if err := c.ShouldBindJSON(&request); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 
-		vault, err := repository.GetVaultById(pool, loginRequest.Id)
+		err := repository.CreateVaultAccess(pool, request.UserID, request.VaultID)
+
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 
-		err = bcrypt.CompareHashAndPassword([]byte(vault.Password), []byte(loginRequest.Password))
+		c.JSON(http.StatusOK, gin.H{
+			"message": "vault access created successfully",
+		})
+	}
+}
+
+func GetVaultById(pool *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		vaultId, err := strconv.ParseInt(c.Param("vaultId"), 10, 64)
+
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid vault id" + err.Error()})
 			return
 		}
 
-		response := LoginVaultResponse{
-			ID:        vault.ID,
-			StoreName: vault.StoreName,
-			Name:      vault.Name,
-			Balance:   vault.Balance,
+		vault, err := repository.GetVaultById(pool, vaultId)
+
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
 		}
 
-		c.JSON(http.StatusOK, response)
+		c.JSON(http.StatusOK, vault)
+	}
+}
+
+func GetVaultsAccesByUserId(pool *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userId, err := strconv.ParseInt(c.Param("userId"), 10, 64)
+
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id" + err.Error()})
+			return
+		}
+
+		vaultsAccess, err := repository.GetVaultAccessByUserId(pool, userId)
+
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, vaultsAccess)
+	}
+}
+
+func GetAllVaultsHandler(pool *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		vaults, err := repository.GetAllVaults(pool)
+
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, vaults)
+	}
+}
+
+func GetVaultsByStoreUserId(pool *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userIdInterface, exist := c.Get("user_id")
+
+		if !exist {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "user_id not found"})
+			return
+		}
+
+		userIdFl := userIdInterface.(float64)
+
+		userId := int64(userIdFl)
+
+		storeId, err := strconv.ParseInt(c.Param("storeId"), 10, 64)
+
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid vault id" + err.Error()})
+			return
+		}
+
+		vaults, err := repository.GetVaultsByStoreUserId(pool, userId, storeId)
+
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, vaults)
 	}
 }

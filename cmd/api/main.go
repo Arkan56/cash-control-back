@@ -61,17 +61,44 @@ func main() {
 	{
 		admin.POST("/stores", handlers.CreateStoreHandler(pool))
 		admin.POST("/vaults", handlers.CreateVaultHandler(pool))
+		admin.GET("/vaults", handlers.GetAllVaultsHandler(pool))
 		admin.POST("/users", handlers.CreateUserHandler(pool))
+		admin.GET("/vaults/:id", handlers.GetAllVaultsByStoreIdHandler(pool))
+		admin.PUT("/users/:userId/access", handlers.SyncUserAccessHandler(pool))
+		admin.GET("/vaultsacces/:userId", handlers.GetVaultsAccesByUserId(pool))
+		admin.GET("/storesacces/:userId", handlers.GetStoresAccesByUserId(pool))
+		admin.GET("/stores", handlers.GetAllStoresHandler(pool))
+		admin.GET("/users", handlers.GetAllUsersHandler(pool))
+		admin.GET("/users/:userId", handlers.GetUserByIdHandler(pool))
 	}
 
 	core := api.Group("/core")
 	core.Use(middleware.AuthRolMiddleware(admin_rol, worker_rol))
 	{
-		core.GET("/stores", handlers.GetAllStoresHandler(pool))
-		core.POST("/movements", handlers.CreateMovHandler(pool))
-		core.GET("/movements/vault/:id", handlers.GetAllMovsHandler(pool))
-		core.GET("/vaults/:id", handlers.GetAllVaultsByStoreIdHandler(pool))
-		core.POST("/auth/login/vault", handlers.LoginVaultHandler(pool))
+		core.GET("/stores", handlers.GetStoresByUserId(pool))
+		core.POST(
+			"/movements/:vaultId",
+			middleware.VaultAccessMiddleware(pool),
+			handlers.CreateMovHandler(pool),
+		)
+
+		core.GET(
+			"/movements/vault/:vaultId",
+			middleware.VaultAccessMiddleware(pool),
+			handlers.GetAllMovsHandler(pool),
+		)
+
+		core.GET(
+			"/vaults/:vaultId",
+			middleware.VaultAccessMiddleware(pool),
+			handlers.GetVaultById(pool),
+		)
+		core.GET(
+			"/store/vaults/:storeId",
+			middleware.StoreAccessMiddleware(pool),
+			handlers.GetVaultsByStoreUserId(pool),
+		)
+		core.GET("/vaults", handlers.GetVaultsByUserId(pool))
 	}
 	router.Run(":" + cfg.Port)
 

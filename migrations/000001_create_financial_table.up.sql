@@ -28,8 +28,14 @@ CREATE TABLE IF NOT EXISTS vaults (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     store_id BIGINT NOT NULL REFERENCES stores(id),
     name VARCHAR(255) NOT NULL,
-    password VARCHAR(255) NOT NULL,
     balance BIGINT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS vaultAccess (
+    vault_id BIGINT NOT NULL REFERENCES vaults(id),
+    user_id BIGINT NOT NULL REFERENCES users(id),
+
+    PRIMARY KEY (vault_id, user_id)
 );
 
 CREATE TABLE IF NOT EXISTS amountCategory (

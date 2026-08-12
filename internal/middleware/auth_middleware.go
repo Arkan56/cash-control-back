@@ -2,19 +2,21 @@ package middleware
 
 import (
 	"cash-control/internal/config"
+	"cash-control/internal/repository"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
-
 		if authHeader == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header required"})
 			c.Abort()
@@ -88,6 +90,7 @@ func AuthRolMiddleware(roles ...int32) gin.HandlerFunc {
 
 		if !exist {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "user_role_id not found in context"})
+			c.Abort()
 			return
 		}
 
@@ -101,5 +104,114 @@ func AuthRolMiddleware(roles ...int32) gin.HandlerFunc {
 		}
 
 		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+	}
+}
+
+func VaultAccessMiddleware(pool *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		fmt.Println("VaultAccessMiddleware:", c.Request.URL.Path)
+		userIdInterface, exist := c.Get("user_id")
+
+		if !exist {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "user_id not found"})
+			c.Abort()
+			return
+		}
+
+		userIdFl := userIdInterface.(float64)
+		userId := int64(userIdFl)
+
+		userRolIdInterface, exist := c.Get("user_rol_id")
+
+		if !exist {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "user_rol_id not found"})
+			c.Abort()
+			return
+		}
+
+		userRolIdFl := userRolIdInterface.(float64)
+		userRolId := int32(userRolIdFl)
+
+		if userRolId == 1 {
+			c.Next()
+			return
+		}
+
+		vaultId, err := strconv.ParseInt(c.Param("vaultId"), 10, 64)
+
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid vault id" + err.Error()})
+			c.Abort()
+			return
+		}
+
+		var userAcces bool
+		userAcces, err = repository.UserHasVaultAcces(pool, userId, vaultId)
+
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			c.Abort()
+			return
+		}
+
+		if !userAcces {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Acces denied"})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
+}
+
+func StoreAccessMiddleware(pool *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		userIdInterface, exist := c.Get("user_id")
+
+		if !exist {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "user_id not found"})
+			return
+		}
+
+		userIdFl := userIdInterface.(float64)
+		userId := int64(userIdFl)
+
+		userRolIdInterface, exist := c.Get("user_rol_id")
+
+		if !exist {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "user_rol_id not found"})
+			return
+		}
+
+		userRolIdFl := userRolIdInterface.(float64)
+		userRolId := int32(userRolIdFl)
+
+		if userRolId == 1 {
+			c.Next()
+			return
+		}
+
+		storeId, err := strconv.ParseInt(c.Param("storeId"), 10, 64)
+
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid store id" + err.Error()})
+			return
+		}
+
+		var userAcces bool
+		userAcces, err = repository.UserHasStoreAcces(pool, userId, storeId)
+
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		if !userAcces {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Acces denied"})
+			return
+		}
+
+		c.Next()
 	}
 }

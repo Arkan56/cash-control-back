@@ -5,6 +5,7 @@ import (
 	"cash-control/internal/models"
 	"cash-control/internal/repository"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -12,6 +13,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 )
+
+type SyncAccessRequest struct {
+	StoreIDs []int64 `json:"store_ids"`
+	VaultIDs []int64 `json:"vault_ids"`
+}
 
 func CreateUserHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -87,5 +93,70 @@ func LoginUserHandler(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
 
 		c.JSON(http.StatusOK, models.LoginUserResponse{Token: tokenString})
 
+	}
+}
+
+func GetAllUsersHandler(pool *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		users, err := repository.GetAllUsers(pool)
+
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, users)
+	}
+}
+
+func GetUserByIdHandler(pool *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userId, err := strconv.ParseInt(c.Param("userId"), 10, 64)
+
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id" + err.Error()})
+			return
+		}
+
+		user, err := repository.GetUserById(pool, userId)
+
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, user)
+	}
+}
+
+func SyncUserAccessHandler(pool *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userId, err := strconv.ParseInt(c.Param("userId"), 10, 64)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "userId inválido"})
+			return
+		}
+
+		var req SyncAccessRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		if req.StoreIDs == nil {
+			req.StoreIDs = []int64{}
+		}
+		if req.VaultIDs == nil {
+			req.VaultIDs = []int64{}
+		}
+
+		success, err := repository.SyncAccessByUserId(pool, userId, req.StoreIDs, req.VaultIDs)
+
+		if err != nil || !success {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "synchronized access"})
 	}
 }

@@ -15,12 +15,21 @@ type CreateMovInput struct {
 	Amount           int64  `json:"amount"  binding:"required"`
 	AmountCategoryID int32  `json:"amount_category_id" binding:"required"`
 	VaultID          int64  `json:"vault_id"  binding:"required"`
-	UserID           int64  `json:"user_id"  binding:"required"`
 }
 
 func CreateMovHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var input CreateMovInput
+		userIdInterface, exist := c.Get("user_id")
+
+		if !exist {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "user_id not found"})
+			return
+		}
+
+		userIdFl := userIdInterface.(float64)
+
+		userId := int64(userIdFl)
 
 		if err := c.ShouldBindJSON(&input); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -32,7 +41,7 @@ func CreateMovHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			input.Amount,
 			input.AmountCategoryID,
 			input.VaultID,
-			input.UserID)
+			userId)
 
 		if err != nil {
 			fmt.Printf("Error detallado de DB: %v\n", err)
@@ -45,7 +54,7 @@ func CreateMovHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 }
 func GetAllMovsHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		vaultID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+		vaultID, err := strconv.ParseInt(c.Param("vaultId"), 10, 64)
 		if err != nil {
 			c.JSON(400, gin.H{"error": "invalid vault id"})
 			return
