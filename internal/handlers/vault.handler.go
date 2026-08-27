@@ -170,6 +170,17 @@ func GetVaultsByStoreUserId(pool *pgxpool.Pool) gin.HandlerFunc {
 
 		userId := int64(userIdFl)
 
+		userRolIdInterface, exist := c.Get("user_rol_id")
+
+		if !exist {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "user_rol_id not found"})
+			return
+		}
+
+		userRolIdFl := userRolIdInterface.(float64)
+
+		userRolId := int64(userRolIdFl)
+
 		storeId, err := strconv.ParseInt(c.Param("storeId"), 10, 64)
 
 		if err != nil {
@@ -177,7 +188,12 @@ func GetVaultsByStoreUserId(pool *pgxpool.Pool) gin.HandlerFunc {
 			return
 		}
 
-		vaults, err := repository.GetVaultsByStoreUserId(pool, userId, storeId)
+		var vaults []models.StoreVault
+		if userRolId == 1 {
+			vaults, err = repository.GetVaultsByStoreId(pool, storeId)
+		} else {
+			vaults, err = repository.GetVaultsByStoreUserId(pool, userId, storeId)
+		}
 
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
