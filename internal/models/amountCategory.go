@@ -1,6 +1,6 @@
 package models
 
 type AmountCategory struct {
-	ID          uint
-	description string
+	ID          uint   `json:"id" db:"id"`
+	Description string `json:"description" db:"description"`
 }
