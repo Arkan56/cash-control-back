@@ -35,6 +35,29 @@ func CreateStore(pool *pgxpool.Pool, name string) (*models.Store, error) {
 	return &store, nil
 }
 
+func UpdateStoreName(pool *pgxpool.Pool, name string, id int) (*models.StoreUpdateResponse, error) {
+	var ctx context.Context
+	var cancel context.CancelFunc
+
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+
+	defer cancel()
+
+	var query string = `UPDATE stores SET name = $1 WHERE id = $2 RETURNING id, name`
+
+	var store models.StoreUpdateResponse
+
+	err := pool.QueryRow(ctx, query, name, id).Scan(
+		&store.ID,
+		&store.Name,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+	return &store, nil
+}
+
 func GetAllStores(pool *pgxpool.Pool) ([]models.Store, error) {
 	var ctx context.Context
 	var cancel context.CancelFunc
@@ -144,4 +167,80 @@ func UserHasStoreAcces(pool *pgxpool.Pool, userId, storeId int64) (bool, error) 
 	}
 
 	return exist, nil
+}
+
+func GetStoreDetailById(pool *pgxpool.Pool, storeId int) (*models.StoreDetail, error) {
+	var ctx context.Context
+	var cancel context.CancelFunc
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	tx, err := pool.Begin(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer tx.Rollback(ctx)
+
+	store := &models.StoreDetail{
+		Vaults: []models.Vault{},
+	}
+
+	var query string = `
+		SELECT stores.id, stores.name, stores.balance
+		FROM stores
+		WHERE id = $1
+	`
+	err = tx.QueryRow(ctx, query, storeId).Scan(
+		&store.ID,
+		&store.Name,
+		&store.Balance,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	query = `
+		SELECT id, name, store_id, balance
+        FROM vaults
+        WHERE store_id = $1
+        ORDER BY id
+	`
+
+	rows, err := tx.Query(ctx, query, storeId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	for rows.Next() {
+		var vault models.Vault
+
+		err := rows.Scan(
+			&vault.ID,
+			&vault.Name,
+			&vault.StoreId,
+			&vault.Balance,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		store.Vaults = append(store.Vaults, vault)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+
+	return store, nil
 }

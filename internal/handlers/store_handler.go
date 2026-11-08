@@ -32,6 +32,33 @@ func CreateStoreHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	}
 }
 
+func UpdateStoreHandler(pool *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var input CreateStoreInput
+
+		if err := c.ShouldBindJSON(&input); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		storeId, err := strconv.ParseInt(c.Param("storeId"), 10, 64)
+
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid store id" + err.Error()})
+			return
+		}
+
+		store, err := repository.UpdateStoreName(pool, input.Name, int(storeId))
+
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, store)
+	}
+}
+
 func GetAllStoresHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		stores, err := repository.GetAllStores(pool)
@@ -111,5 +138,25 @@ func GetStoresAccesByUserId(pool *pgxpool.Pool) gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, storesAccess)
+	}
+}
+
+func GetStoreDetailById(pool *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		storeId, err := strconv.ParseInt(c.Param("storeId"), 10, 64)
+
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid store id" + err.Error()})
+			return
+		}
+
+		storeDetail, err := repository.GetStoreDetailById(pool, int(storeId))
+
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, storeDetail)
 	}
 }
