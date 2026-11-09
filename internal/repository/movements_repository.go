@@ -102,7 +102,7 @@ func CreateMovement(pool *pgxpool.Pool, detail string, amount int64, amountCateg
 	return &movement, nil
 }
 
-func GetAllMovements(pool *pgxpool.Pool, vaultId int64) ([]models.MovementWithUser, error) {
+func GetAllMovements(pool *pgxpool.Pool, vaultId int64, startDate time.Time, endDate time.Time) ([]models.MovementWithUser, error) {
 	var ctx context.Context
 	var cancel context.CancelFunc
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
@@ -113,8 +113,11 @@ func GetAllMovements(pool *pgxpool.Pool, vaultId int64) ([]models.MovementWithUs
 	FROM movements 
 	JOIN users ON movements.user_id = users.id
 	WHERE movements.vault_id = $1
+	AND movements.created_at >= $2
+	AND movements.created_at < $3
+	ORDER BY movements.created_at DESC
 	`
-	var rows, err = pool.Query(ctx, query, vaultId)
+	var rows, err = pool.Query(ctx, query, vaultId, startDate, endDate)
 
 	if err != nil {
 		return nil, err

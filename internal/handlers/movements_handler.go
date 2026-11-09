@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -56,11 +57,38 @@ func GetAllMovsHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		vaultID, err := strconv.ParseInt(c.Param("vaultId"), 10, 64)
 		if err != nil {
-			c.JSON(400, gin.H{"error": "invalid vault id"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid vault id"})
 			return
 		}
 
-		movs, err := repository.GetAllMovements(pool, vaultID)
+		startDateStr := c.Query("start_date")
+		endDateStr := c.Query("end_date")
+
+		startDate, err := time.Parse("2006-01-02", startDateStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid start date"})
+			return
+		}
+
+		endDate, err := time.Parse("2006-01-02", endDateStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid end date"})
+			return
+		}
+
+		if endDate.Before(startDate) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "end date cannot be before start date"})
+			return
+		}
+
+		endDate = endDate.AddDate(0, 0, 1)
+
+		movs, err := repository.GetAllMovements(
+			pool,
+			vaultID,
+			startDate,
+			endDate,
+		)
 
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
