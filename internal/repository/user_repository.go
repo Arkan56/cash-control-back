@@ -25,7 +25,7 @@ func CreateWorkerUser(pool *pgxpool.Pool, req *models.CreateUserRequest) (*model
 
 	var createdUser models.CreatedUserResponce
 
-	err := pool.QueryRow(ctx, query, req.UserName, req.Password, req.Name, 2).Scan(
+	err := pool.QueryRow(ctx, query, req.UserName, req.Password, req.Name, req.IdRol).Scan(
 		&createdUser.ID,
 		&createdUser.UserName,
 		&createdUser.Name,
@@ -294,4 +294,29 @@ func SyncAccessByUserId(pool *pgxpool.Pool, userId int64, storeIDs, vaultIDs []i
 	}
 
 	return true, nil
+}
+
+func UpdateUser(pool *pgxpool.Pool, id int64, userName, name, hashedPassword *string, rolID *int32) (*models.User, error) {
+	var ctx context.Context
+	var cancel context.CancelFunc
+
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var u models.User
+
+	err := pool.QueryRow(ctx, `
+		UPDATE users SET
+			userName = COALESCE($2, userName),
+			name     = COALESCE($3, name),
+			password = COALESCE($4, password),
+			rol_id   = COALESCE($5, rol_id)
+		WHERE id = $1
+		RETURNING id, userName, name, rol_id`,
+		id, userName, name, hashedPassword, rolID,
+	).Scan(&u.ID, &u.UserName, &u.Name, &u.IdRol)
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
 }

@@ -73,6 +73,7 @@ func main() {
 		admin.POST("/amountcat", handlers.CreateAmountCategoryHandler(pool))
 		admin.PATCH("/stores/:storeId", handlers.UpdateStoreHandler(pool))
 		admin.GET("/stores/:storeId", handlers.GetStoreDetailById(pool))
+		admin.PATCH("/users/:userId", handlers.UpdateUserHandler(pool))
 	}
 
 	core := api.Group("/core")
