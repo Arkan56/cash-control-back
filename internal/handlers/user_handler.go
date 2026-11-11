@@ -4,12 +4,15 @@ import (
 	"cash-control/internal/config"
 	"cash-control/internal/models"
 	"cash-control/internal/repository"
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -39,6 +42,7 @@ func CreateUserHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			UserName: input.UserName,
 			Name:     input.Name,
 			Password: string(hashedPassword),
+			IdRol:    input.IdRol,
 		}
 
 		createdUser, err := repository.CreateWorkerUser(pool, user)
@@ -158,5 +162,56 @@ func SyncUserAccessHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, gin.H{"message": "synchronized access"})
+	}
+}
+
+func UpdateUserHandler(pool *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userId, err := strconv.ParseInt(c.Param("userId"), 10, 64)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+			return
+		}
+
+		var req models.UpdateUserRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		if req.UserName == nil && req.Name == nil && req.Password == nil && req.IdRol == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "nothing to update"})
+			return
+		}
+
+		var hashed *string
+		if req.Password != nil {
+			h, err := bcrypt.GenerateFromPassword([]byte(*req.Password), bcrypt.DefaultCost)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hash password"})
+				return
+			}
+			s := string(h)
+			hashed = &s
+		}
+
+		user, err := repository.UpdateUser(pool, userId,
+			req.UserName, req.Name, hashed, req.IdRol)
+		if err != nil {
+			var pgErr *pgconn.PgError
+			switch {
+			case errors.Is(err, pgx.ErrNoRows):
+				c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+			case errors.As(err, &pgErr) && pgErr.Code == "23505":
+				c.JSON(http.StatusConflict, gin.H{"error": "username already exists"})
+			case errors.As(err, &pgErr) && pgErr.Code == "23503":
+				c.JSON(http.StatusBadRequest, gin.H{"error": "role does not exist"})
+			default:
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update user"})
+			}
+			return
+		}
+
+		c.JSON(http.StatusOK, user)
 	}
 }

@@ -18,6 +18,7 @@ type CreateUserRequest struct {
 	UserName string `json:"user_name" binding:"required"`
 	Name     string `json:"name" binding:"required"`
 	Password string `json:"password" binding:"required"`
+	IdRol    int32  `json:"rol_id"    binding:"required,oneof=1 2"`
 }
 
 type LoginUserRequest struct {
@@ -27,4 +28,11 @@ type LoginUserRequest struct {
 
 type LoginUserResponse struct {
 	Token string `json:"token"`
+}
+
+type UpdateUserRequest struct {
+	UserName *string `json:"user_name" binding:"omitempty,min=3"`
+	Name     *string `json:"name"      binding:"omitempty,min=1"`
+	Password *string `json:"password"  binding:"omitempty,min=8"`
+	IdRol    *int32  `json:"rol_id"`
 }
